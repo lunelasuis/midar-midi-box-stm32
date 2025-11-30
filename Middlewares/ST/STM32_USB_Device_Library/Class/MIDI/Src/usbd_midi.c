@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    usbd_midi.c
-  * @author  Illia Pikin, MCD Application Team
+  * @author  Illia Pikin; MCD Application Team
   * @brief   This file provides the MIDI core functions.
   *
   * @verbatim
@@ -21,7 +21,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT 2025 Illia Pikin</center></h2>
+  * <h2><center>&copy; COPYRIGHT 2022 Illia Pikin</center></h2>
   * <h2><center>&copy; COPYRIGHT 2014 STMicroelectronics</center></h2>
   *
   * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
@@ -35,31 +35,6 @@
   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   * See the License for the specific language governing permissions and
   * limitations under the License.
-  *
-  * Licensed under BSD 2-Clause License
-  *
-  * Copyright (c) 2025, Illia Pikin a.k.a Hypnotriod
-  *
-  * Redistribution and use in source and binary forms, with or without
-  * modification, are permitted provided that the following conditions are met:
-  *
-  * 1. Redistributions of source code must retain the above copyright notice, this
-  *    list of conditions and the following disclaimer.
-  *
-  * 2. Redistributions in binary form must reproduce the above copyright notice,
-  *    this list of conditions and the following disclaimer in the documentation
-  *    and/or other materials provided with the distribution.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   *
   ******************************************************************************
   */ 
@@ -179,7 +154,7 @@ __ALIGN_BEGIN static uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZE]  __ALI
   0x01,                 /*bDescriptorSubtype: MS_HEADER subtype*/
   0x00,
   0x01,                 /*BcdADC: Revision of this class specification*/
-  USB_MIDI_INTERFACE_DESC_SIZE,
+  USB_MIDI_REPORT_DESC_SIZE,
   0x00,                  /*wTotalLength: Total size of class-specific descriptors*/
 
 #if MIDI_IN_PORTS_NUM >= 1
@@ -638,12 +613,12 @@ static uint8_t  USBD_MIDI_Init (USBD_HandleTypeDef *pdev,
   
   USBD_LL_OpenEP(pdev,
                  MIDI_EPIN_ADDR,
-                 USBD_EP_TYPE_BULK,
+                 USBD_EP_TYPE_INTR,
                  MIDI_EPIN_SIZE);  
 
   USBD_LL_OpenEP(pdev,
                MIDI_EPOUT_ADDR,
-               USBD_EP_TYPE_BULK,
+               USBD_EP_TYPE_INTR,
                MIDI_EPOUT_SIZE);
   
   USBD_LL_PrepareReceive(pdev, 
@@ -782,15 +757,15 @@ uint8_t USBD_MIDI_GetState(USBD_HandleTypeDef  *pdev)
 }
 
 /**
-  * @brief  USBD_MIDI_SendPackets 
-  *         Send MIDI event packets to the host
+  * @brief  USBD_MIDI_SendReport 
+  *         Send MIDI Report
   * @param  pdev: device instance
-  * @param  data: pointer to the packets data
-  * @param  len: size of the data
+  * @param  report: pointer to report
+  * @param  len: size of report
   * @retval status
   */
-uint8_t USBD_MIDI_SendPackets(USBD_HandleTypeDef  *pdev, 
-                                 uint8_t *data,
+uint8_t USBD_MIDI_SendReport     (USBD_HandleTypeDef  *pdev, 
+                                 uint8_t *report,
                                  uint16_t len)
 {
   USBD_MIDI_HandleTypeDef *hmidi = pdev->pClassData;
@@ -800,7 +775,7 @@ uint8_t USBD_MIDI_SendPackets(USBD_HandleTypeDef  *pdev,
     if(hmidi->state == MIDI_IDLE)
     {
       hmidi->state = MIDI_BUSY;
-      USBD_LL_Transmit(pdev, MIDI_EPIN_ADDR, data, len);
+      USBD_LL_Transmit (pdev, MIDI_EPIN_ADDR, report, len);
     }
   }
   return USBD_OK;
@@ -842,22 +817,11 @@ uint8_t  *USBD_MIDI_DeviceQualifierDescriptor (uint16_t *length)
 static uint8_t  USBD_MIDI_DataIn (USBD_HandleTypeDef *pdev, 
                               uint8_t epnum)
 {
-  UNUSED(epnum);
+  
   /* Ensure that the FIFO is empty before a new transfer, this condition could 
   be caused by  a new transfer before the end of the previous transfer */
   ((USBD_MIDI_HandleTypeDef *)pdev->pClassData)->state = MIDI_IDLE;
-
-  USBD_MIDI_OnPacketsSent();
-
   return USBD_OK;
-}
-
-/**
-  * @brief  USBD_MIDI_OnPacketsSent
-  *         on usb midi packets sent to the host callback
-  */
-__weak extern void USBD_MIDI_OnPacketsSent(void)
-{
 }
 
 /**
@@ -869,13 +833,11 @@ __weak extern void USBD_MIDI_OnPacketsSent(void)
   */
 static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-  uint8_t len;
-
   if (epnum != (MIDI_EPOUT_ADDR & 0x0F)) return USBD_FAIL;
-  
-  len = (uint8_t)HAL_PCD_EP_GetRxCount((PCD_HandleTypeDef*) pdev->pData, epnum);
 
-  USBD_MIDI_OnPacketsReceived(usb_rx_buffer, len);
+  USBD_MIDI_DataInHandler(usb_rx_buffer, MIDI_EPOUT_SIZE);
+  
+  memset(usb_rx_buffer, 0, MIDI_EPOUT_SIZE);
   
   USBD_LL_PrepareReceive(pdev, MIDI_EPOUT_ADDR, usb_rx_buffer, MIDI_EPOUT_SIZE);  
   
@@ -883,15 +845,13 @@ static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 }
 
 /**
-  * @brief  USBD_MIDI_OnPacketsReceived
-  *         on usb midi packets received from the host callback
-  * @param  data: pointer to the data packet
-  * @param  len: size of the data
+  * @brief  USBD_MIDI_DataInHandler
+  * @param  usb_rx_buffer: midi messages buffer
+  * @param  usb_rx_buffer_length: midi messages buffer length
   */
-__weak extern void USBD_MIDI_OnPacketsReceived(uint8_t *data, uint8_t len)
+__weak extern void USBD_MIDI_DataInHandler(uint8_t * usb_rx_buffer, uint8_t usb_rx_buffer_length)
 {
-  UNUSED(data);
-  UNUSED(len);
+  // For user implementation.
 }
 
 /**
