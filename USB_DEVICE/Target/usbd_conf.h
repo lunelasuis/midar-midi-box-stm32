@@ -35,8 +35,8 @@
 #include "stm32f4xx_hal.h"
 
 /* USER CODE BEGIN INCLUDE */
-#define MIDI_IN_PORTS_NUM   0x0 // Specify input ports number of your device
-#define MIDI_OUT_PORTS_NUM  0x01 // Specify output ports number of your device
+#define MIDI_IN_PORTS_NUM   0x01 // Specify input ports number of your device
+#define MIDI_OUT_PORTS_NUM  0x0 // Specify output ports number of your device
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
