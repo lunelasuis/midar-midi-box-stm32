@@ -65,7 +65,7 @@
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "Loony"
-#define USBD_PID_FS     13159
+#define USBD_PID_FS     13160
 #define USBD_PRODUCT_STRING_FS     "Midar"
 #define USBD_CONFIGURATION_STRING_FS     "HID Config"
 #define USBD_INTERFACE_STRING_FS     "HID Interface"
