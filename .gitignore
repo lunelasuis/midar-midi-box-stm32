@@ -10,3 +10,5 @@ MDK-ARM/JLinkSettings.ini
 *.lst
 *.*_tmp
 .mxproject
+Debug/
+Release/
